@@ -31,10 +31,11 @@ class ChecklistView(View):
         self.add_item(Button(label="✅ Valider", style=discord.ButtonStyle.success, custom_id="validate"))
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.data["custom_id"] in self.items:
-            self.items[interaction.data["custom_id"]] = not self.items[interaction.data["custom_id"]]
-            await interaction.response.edit_message(content=f"{interaction.data["custom_id"]} {'ajouté' if self.items[interaction.data["custom_id"]] else 'retiré'} !", view=self)
-        elif interaction.data["custom_id"] == "validate":
+        custom_id = interaction.data["custom_id"]
+        if custom_id in self.items:
+            self.items[custom_id] = not self.items[custom_id]
+            await interaction.response.edit_message(content=f"{custom_id} {'ajouté' if self.items[custom_id] else 'retiré'} !", view=self)
+        elif custom_id == "validate":
             checklist = "\n".join([f"✅ {item}" if checked else f"❌ {item}" for item, checked in self.items.items()])
             await interaction.response.send_message(f"État de votre checklist :\n{checklist}")
         return True
@@ -50,13 +51,14 @@ class MenuView(View):
         self.add_item(Button(label="Checklist", style=discord.ButtonStyle.success, custom_id="checklist"))
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.data["custom_id"] == "blood_groups":
+        custom_id = interaction.data["custom_id"]
+        if custom_id == "blood_groups":
             await interaction.response.send_message("Voici les groupes sanguins dans *DayZ* :\nhttps://example.com/blood_groups.png")
-        elif interaction.data["custom_id"] == "buildings":
+        elif custom_id == "buildings":
             await interaction.response.send_message("Voici les plans de construction :\nhttps://example.com/buildings.png")
-        elif interaction.data["custom_id"] == "other":
+        elif custom_id == "other":
             await interaction.response.send_message("Autres informations sur *DayZ* :\nhttps://example.com/other_info.png")
-        elif interaction.data["custom_id"] == "checklist":
+        elif custom_id == "checklist":
             view = ChecklistView()
             await interaction.response.send_message("Cliquez sur les outils pour les ajouter ou les retirer de votre liste :", view=view)
         return True

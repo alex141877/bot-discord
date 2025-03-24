@@ -19,8 +19,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 class ChecklistView(View):
     def __init__(self):
         super().__init__()
-        self.items = {"Agriculture": False, "Raid Grenade": False, "Outils Base": False}
-
+        self.items = {
+            "Scie": False, "Clou": False, "Hache": False, "Pelle": False,
+            "Corde": False, "Tenaille": False, "Cable": False,
+            "Hachette ou Merlin+Marteau": False
+        }
+        
         self.add_item(Button(label="✅ Valider", style=discord.ButtonStyle.success, custom_id="validate"))
         
     async def interaction_check(self, interaction: discord.Interaction) -> bool:

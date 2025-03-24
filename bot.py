@@ -1,7 +1,7 @@
 import os
 import discord
 from discord.ext import commands
-from discord.ui import View, Button
+from discord.ui import View, Button, Select
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement depuis .env
@@ -16,24 +16,39 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+class ChecklistView(View):
+    def __init__(self):
+        super().__init__()
+        self.items = {"Agriculture": False, "Raid Grenade": False, "Outils Base": False}
+
+        self.add_item(Button(label="✅ Valider", style=discord.ButtonStyle.success, custom_id="validate"))
+        
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.data["custom_id"] == "validate":
+            checklist = "\n".join([f"✅ {item}" if checked else f"❌ {item}" for item, checked in self.items.items()])
+            await interaction.response.send_message(f"État de votre checklist :\n{checklist}")
+        return True
+
 class MenuView(View):
     def __init__(self):
         super().__init__()
         
-        # Bouton Groupes sanguins
+        # Ajout des boutons pour les catégories
         self.add_item(Button(label="Groupes sanguins", style=discord.ButtonStyle.primary, custom_id="blood_groups"))
-        # Bouton Constructions
         self.add_item(Button(label="Constructions", style=discord.ButtonStyle.primary, custom_id="buildings"))
-        # Bouton Autres Infos
         self.add_item(Button(label="Autres Infos", style=discord.ButtonStyle.secondary, custom_id="other"))
-
+        self.add_item(Button(label="Checklist", style=discord.ButtonStyle.success, custom_id="checklist"))
+    
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.data["custom_id"] == "blood_groups":
-            await interaction.response.send_message("Voici les groupes sanguins dans *DayZ* :https://serveur-dayz.fr/wp-content/uploads/2022/11/donneur-receveur.jpeg")
+            await interaction.response.send_message("Voici les groupes sanguins dans *DayZ* :\nhttps://example.com/blood_groups.png")
         elif interaction.data["custom_id"] == "buildings":
             await interaction.response.send_message("Voici les plans de construction :\nhttps://example.com/buildings.png")
         elif interaction.data["custom_id"] == "other":
             await interaction.response.send_message("Autres informations sur *DayZ* :\nhttps://example.com/other_info.png")
+        elif interaction.data["custom_id"] == "checklist":
+            view = ChecklistView()
+            await interaction.response.send_message("Activez les éléments que vous possédez :", view=view)
         return True
 
 @bot.event

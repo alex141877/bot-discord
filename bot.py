@@ -1,7 +1,7 @@
 import os
 import discord
 from discord.ext import commands
-from discord.ui import View, Button, Select
+from discord.ui import View, Button
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement depuis .env
@@ -25,10 +25,16 @@ class ChecklistView(View):
             "Hachette ou Merlin+Marteau": False
         }
         
-        self.add_item(Button(label="✅ Valider", style=discord.ButtonStyle.success, custom_id="validate"))
+        for item in self.items.keys():
+            self.add_item(Button(label=item, style=discord.ButtonStyle.secondary, custom_id=item))
         
+        self.add_item(Button(label="✅ Valider", style=discord.ButtonStyle.success, custom_id="validate"))
+    
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.data["custom_id"] == "validate":
+        if interaction.data["custom_id"] in self.items:
+            self.items[interaction.data["custom_id"]] = not self.items[interaction.data["custom_id"]]
+            await interaction.response.edit_message(content=f"{interaction.data["custom_id"]} {'ajouté' if self.items[interaction.data["custom_id"]] else 'retiré'} !", view=self)
+        elif interaction.data["custom_id"] == "validate":
             checklist = "\n".join([f"✅ {item}" if checked else f"❌ {item}" for item, checked in self.items.items()])
             await interaction.response.send_message(f"État de votre checklist :\n{checklist}")
         return True
@@ -52,7 +58,7 @@ class MenuView(View):
             await interaction.response.send_message("Autres informations sur *DayZ* :\nhttps://example.com/other_info.png")
         elif interaction.data["custom_id"] == "checklist":
             view = ChecklistView()
-            await interaction.response.send_message("Activez les éléments que vous possédez :", view=view)
+            await interaction.response.send_message("Cliquez sur les outils pour les ajouter ou les retirer de votre liste :", view=view)
         return True
 
 @bot.event

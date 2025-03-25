@@ -88,4 +88,35 @@ async def menu(ctx):
     view = MenuView()
     await ctx.send("Choisissez une catégorie :", view=view)
 
+@bot.command()
+async def add_vote(ctx, user: discord.User):
+    if ctx.author.id in voted_users and user.id in voted_users[ctx.author.id]:
+        await ctx.send(f"{ctx.author.name}, vous avez déjà voté pour {user.name}. Vous ne pouvez pas revoter.")
+        return
+
+    votes[user.id] = votes.get(user.id, 0) + 1
+    voted_users.setdefault(ctx.author.id, []).append(user.id)
+
+    if votes[user.id] >= 6:
+        await ctx.guild.ban(user, reason=f"Bannissement temporaire pour {votes[user.id]} votes", delete_message_days=1)
+        await ctx.send(f"{user.name} a été banni pendant 24h pour avoir {votes[user.id]} votes.")
+    else:
+        await ctx.send(f"{user.name} a maintenant {votes[user.id]} votes.")
+
+@bot.command()
+async def check_votes(ctx, user: discord.User = None):
+    if user is None:
+        await ctx.send("Veuillez mentionner un utilisateur pour vérifier ses votes.")
+        return
+    await ctx.send(f"{user.name} a {votes.get(user.id, 0)} votes.")
+
+@bot.command()
+async def reset_votes(ctx):
+    if ctx.author.id != ctx.guild.owner.id:
+        await ctx.send("Désolé, vous devez être le fondateur du serveur pour réinitialiser les votes.")
+        return
+    votes.clear()
+    voted_users.clear()
+    await ctx.send("Les votes ont été réinitialisés. Les utilisateurs peuvent maintenant revoter.")
+
 bot.run(TOKEN)

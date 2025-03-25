@@ -18,7 +18,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Dictionnaire pour suivre les votes des utilisateurs
 votes = {}
-voted_users = {}  # Pour suivre les utilisateurs qui ont déjà voté pour quelqu'un
+voted_users = {}  # Pour suivre les utilisateurs qui ont déjà voté
 
 class ChecklistView(View):
     def __init__(self):
@@ -48,20 +48,32 @@ class MenuView(View):
     def __init__(self):
         super().__init__()
         
-        # Ajout des boutons pour les catégories
         self.add_item(Button(label="Groupes sanguins", style=discord.ButtonStyle.primary, custom_id="blood_groups"))
         self.add_item(Button(label="Constructions", style=discord.ButtonStyle.primary, custom_id="buildings"))
         self.add_item(Button(label="Autres Infos", style=discord.ButtonStyle.secondary, custom_id="other"))
+        self.add_item(Button(label="Médic", style=discord.ButtonStyle.success, custom_id="medic"))
         self.add_item(Button(label="Checklist", style=discord.ButtonStyle.success, custom_id="checklist"))
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         custom_id = interaction.data["custom_id"]
         if custom_id == "blood_groups":
-            await interaction.response.send_message("Voici les groupes sanguins dans *DayZ* :https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=1200,h=630,fit=crop,f=jpeg/YNqNaeQNEwSwGxov/donneur-receveur-YBgyQOJlnjivZzGr.png")
+            embed = discord.Embed(title="Groupes sanguins", description="Voici les groupes sanguins dans *DayZ*.")
+            embed.set_image(url="https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=1200,h=630,fit=crop,f=jpeg/YNqNaeQNEwSwGxov/donneur-receveur-YBgyQOJlnjivZzGr.png")
+            await interaction.response.send_message(embed=embed)
         elif custom_id == "buildings":
-            await interaction.response.send_message("Voici les plans de construction :https://i.redd.it/ni418ixshzu41.png","pour les raid : https://th.bing.com/th/id/R.72c751c14f5bbb5cc35d4e0ea3aa5446?rik=KfqbUkCjQeZJJQ&pid=ImgRaw&r=0")
+            embed = discord.Embed(title="Plans de construction et raids", description="Voici les plans utiles en jeu.")
+            embed.add_field(name="Construction", value="[Voir ici](https://i.redd.it/ni418ixshzu41.png)", inline=False)
+            embed.add_field(name="Raids", value="[Voir ici](https://th.bing.com/th/id/R.72c751c14f5bbb5cc35d4e0ea3aa5446?rik=KfqbUkCjQeZJJQ&pid=ImgRaw&r=0)", inline=False)
+            await interaction.response.send_message(embed=embed)
         elif custom_id == "other":
-            await interaction.response.send_message("Autres informations sur *DayZ* viande :https://steamuserimages-a.akamaihd.net/ugc/1681498780799219777/FE18654C476CB9FD970C9D75603C4D7BA721D2D1/")
+            embed = discord.Embed(title="Autres informations", description="Données utiles sur *DayZ*.")
+            embed.set_image(url="https://steamuserimages-a.akamaihd.net/ugc/1681498780799219777/FE18654C476CB9FD970C9D75603C4D7BA721D2D1/")
+            await interaction.response.send_message(embed=embed)
+        elif custom_id == "medic":
+            embed = discord.Embed(title="Guide médical", description="Informations sur les soins dans *DayZ*.")
+            embed.add_field(name="Médicaments", value="[Voir ici](https://dayz.fandom.com/wiki/Medical_Supplies)", inline=False)
+            embed.add_field(name="Traumatismes", value="[Voir ici](https://dayz.fandom.com/wiki/Injuries)", inline=False)
+            await interaction.response.send_message(embed=embed)
         elif custom_id == "checklist":
             view = ChecklistView()
             await interaction.response.send_message("Cliquez sur les outils pour les ajouter ou les retirer de votre liste :", view=view)
@@ -76,45 +88,4 @@ async def menu(ctx):
     view = MenuView()
     await ctx.send("Choisissez une catégorie :", view=view)
 
-# Commande pour ajouter un vote à un utilisateur
-@bot.command()
-async def add_vote(ctx, user: discord.User):
-    if ctx.author.id in voted_users and user.id in voted_users[ctx.author.id]:
-        await ctx.send(f"{ctx.author.name}, vous avez déjà voté pour {user.name}. Vous ne pouvez pas revoter.")
-        return
-
-    votes[user.id] = votes.get(user.id, 0) + 1
-    voted_users.setdefault(ctx.author.id, []).append(user.id)
-
-    # Si l'utilisateur a 6 votes ou plus, il sera banni pour 24h
-    if votes[user.id] >= 6:
-        await ctx.guild.ban(user, reason=f"Bannissement temporaire pour {votes[user.id]} votes", delete_message_days=1)
-        await ctx.send(f"{user.name} a été banni pendant 24h pour avoir {votes[user.id]} votes.")
-    else:
-        await ctx.send(f"{user.name} a maintenant {votes[user.id]} votes.")
-
-    # Notifie la personne qui a voté et lui montre le nombre de votes
-    await ctx.send(f"{ctx.author.name} a voté pour {user.name}. {user.name} a maintenant {votes[user.id]} votes.")
-
-# Commande pour voir le nombre de votes d'un utilisateur
-@bot.command()
-async def check_votes(ctx, user: discord.User = None):
-    if user is None:
-        await ctx.send("Veuillez mentionner un utilisateur pour vérifier ses votes.")
-        return
-
-    await ctx.send(f"{user.name} a {votes.get(user.id, 0)} votes.")
-
-# Commande pour réinitialiser les votes (uniquement accessible par le fondateur)
-@bot.command()
-async def reset_votes(ctx):
-    if ctx.author.id != ctx.guild.owner.id:
-        await ctx.send("Désolé, vous devez être le fondateur du serveur pour réinitialiser les votes.")
-        return
-
-    votes.clear()
-    voted_users.clear()
-    await ctx.send("Les votes ont été réinitialisés. Les utilisateurs peuvent maintenant revoter.")
-
-# Connecte-toi à Discord avec le token sécurisé
 bot.run(TOKEN)

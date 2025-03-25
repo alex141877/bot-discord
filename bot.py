@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from discord.ui import View, Button
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 # Charger les variables d'environnement depuis .env
 load_dotenv()
@@ -14,11 +15,16 @@ if TOKEN is None:
 # Crée une instance du bot
 intents = discord.Intents.default()
 intents.message_content = True
+intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Dictionnaire pour suivre les votes des utilisateurs
 votes = {}
 voted_users = {}  # Pour suivre les utilisateurs qui ont déjà voté
+
+# Dictionnaire pour suivre le temps passé en vocal
+voice_times = {}
+user_join_times = {}
 
 class ChecklistView(View):
     def __init__(self):
@@ -83,6 +89,17 @@ class MenuView(View):
 async def on_ready():
     print(f'{bot.user} est prêt et connecté à Discord !')
 
+@bot.event
+async def on_voice_state_update(member, before, after):
+    # Lorsque le membre rejoint un canal vocal
+    if before.channel is None and after.channel is not None:
+        user_join_times[member.id] = datetime.now()
+    # Lorsque le membre quitte un canal vocal
+    elif before.channel is not None and after.channel is None:
+        if member.id in user_join_times:
+            duration = datetime.now() - user_join_times.pop(member.id, datetime.now())
+            voice_times[member.id] = voice_times.get(member.id, timedelta()) + duration
+
 @bot.command()
 async def menu(ctx):
     view = MenuView()
@@ -118,5 +135,24 @@ async def reset_votes(ctx):
     votes.clear()
     voted_users.clear()
     await ctx.send("Les votes ont été réinitialisés. Les utilisateurs peuvent maintenant revoter.")
+
+@bot.command()
+async def check_time(ctx, user: discord.User = None):
+    """Commande pour vérifier le temps passé en vocal d'un utilisateur"""
+    if user is None:
+        user = ctx.author
+    total_time = voice_times.get(user.id, timedelta())
+    hours, remainder = divmod(total_time.total_seconds(), 3600)
+    minutes, _ = divmod(remainder, 60)
+    await ctx.send(f"{user.name} a passé {int(hours)}h {int(minutes)}m en vocal.")
+
+@bot.command()
+async def reset_time(ctx):
+    """Commande pour réinitialiser le temps de vocal pour tous les utilisateurs"""
+    if ctx.author.guild_permissions.administrator:
+        voice_times.clear()
+        await ctx.send("Le temps de vocal a été réinitialisé.")
+    else:
+        await ctx.send("Vous devez être administrateur pour utiliser cette commande.")
 
 bot.run(TOKEN)

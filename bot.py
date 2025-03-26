@@ -3,14 +3,21 @@ import discord
 from discord.ext import commands
 from discord.ui import View, Button
 from dotenv import load_dotenv
+import asyncpg
 from datetime import datetime, timedelta
 
 # Charger les variables d'environnement depuis .env
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-if TOKEN is None:
-    raise ValueError("Le token Discord est introuvable ! Assurez-vous de l'ajouter aux variables d'environnement.")
+if TOKEN is None or DATABASE_URL is None:
+    raise ValueError("Le token Discord ou l'URL de la base de données est introuvable ! Assurez-vous de les ajouter aux variables d'environnement.")
+
+# Connexion à PostgreSQL avec asyncpg
+async def get_db_connection():
+    conn = await asyncpg.connect(DATABASE_URL)
+    return conn
 
 # Crée une instance du bot
 intents = discord.Intents.default()
@@ -20,11 +27,25 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Dictionnaire pour suivre les votes des utilisateurs
 votes = {}
-voted_users = {}  # Pour suivre les utilisateurs qui ont déjà voté
+voted_users = {}
 
 # Dictionnaire pour suivre le temps passé en vocal
 voice_times = {}
 user_join_times = {}
+
+# Création de la table PostgreSQL pour stocker le temps passé en vocal
+async def create_table():
+    conn = await get_db_connection()
+    await conn.execute("""
+    CREATE TABLE IF NOT EXISTS voice_data (
+        user_id BIGINT PRIMARY KEY,
+        total_time INTERVAL
+    );
+    """)
+    await conn.close()
+
+# Assure-toi que la table existe
+bot.loop.create_task(create_table())
 
 class ChecklistView(View):
     def __init__(self):
@@ -97,6 +118,16 @@ async def on_voice_state_update(member, before, after):
         if member.id in user_join_times:
             duration = datetime.now() - user_join_times.pop(member.id, datetime.now())
             voice_times[member.id] = voice_times.get(member.id, timedelta()) + duration
+            
+            # Enregistrer le temps passé dans la base de données
+            conn = await get_db_connection()
+            await conn.execute("""
+            INSERT INTO voice_data (user_id, total_time)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id) DO UPDATE
+            SET total_time = voice_data.total_time + EXCLUDED.total_time;
+            """, member.id, duration)
+            await conn.close()
 
 @bot.command()
 async def menu(ctx):
@@ -105,17 +136,29 @@ async def menu(ctx):
 
 @bot.command()
 async def check_time(ctx, user: discord.User = None):
+    """Commande pour vérifier le temps passé en vocal d'un utilisateur"""
     if user is None:
         user = ctx.author
     total_time = voice_times.get(user.id, timedelta())
+    
+    # Récupérer le temps de vocal depuis la base de données
+    conn = await get_db_connection()
+    result = await conn.fetchrow("SELECT total_time FROM voice_data WHERE user_id = $1;", user.id)
+    if result:
+        total_time = result['total_time']
+    
     hours, remainder = divmod(total_time.total_seconds(), 3600)
     minutes, _ = divmod(remainder, 60)
     await ctx.send(f"{user.name} a passé {int(hours)}h {int(minutes)}m en vocal.")
+    await conn.close()
 
 @bot.command()
 async def reset_time(ctx):
+    """Commande pour réinitialiser le temps de vocal pour tous les utilisateurs"""
     if ctx.author.guild_permissions.administrator:
-        voice_times.clear()
+        conn = await get_db_connection()
+        await conn.execute("DELETE FROM voice_data;")
+        await conn.close()
         await ctx.send("Le temps de vocal a été réinitialisé.")
     else:
         await ctx.send("Vous devez être administrateur pour utiliser cette commande.")

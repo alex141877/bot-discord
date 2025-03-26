@@ -1,6 +1,6 @@
 import os
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ui import View, Button
 from dotenv import load_dotenv
 import asyncpg
@@ -44,8 +44,14 @@ async def create_table():
     """)
     await conn.close()
 
-# Assure-toi que la table existe
-bot.loop.create_task(create_table())
+# Utilisation de setup_hook pour exécuter des tâches asynchrones avant que le bot ne soit prêt
+async def on_ready_initialization():
+    await create_table()
+
+@bot.event
+async def on_ready():
+    await on_ready_initialization()
+    print(f'{bot.user} est prêt et connecté à Discord !')
 
 class ChecklistView(View):
     def __init__(self):
@@ -105,29 +111,6 @@ class MenuView(View):
             view = ChecklistView()
             await interaction.response.send_message("Cliquez sur les outils pour les ajouter ou les retirer de votre liste :", view=view)
         return True
-
-@bot.event
-async def on_ready():
-    print(f'{bot.user} est prêt et connecté à Discord !')
-
-@bot.event
-async def on_voice_state_update(member, before, after):
-    if before.channel is None and after.channel is not None:
-        user_join_times[member.id] = datetime.now()
-    elif before.channel is not None and after.channel is None:
-        if member.id in user_join_times:
-            duration = datetime.now() - user_join_times.pop(member.id, datetime.now())
-            voice_times[member.id] = voice_times.get(member.id, timedelta()) + duration
-            
-            # Enregistrer le temps passé dans la base de données
-            conn = await get_db_connection()
-            await conn.execute("""
-            INSERT INTO voice_data (user_id, total_time)
-            VALUES ($1, $2)
-            ON CONFLICT (user_id) DO UPDATE
-            SET total_time = voice_data.total_time + EXCLUDED.total_time;
-            """, member.id, duration)
-            await conn.close()
 
 @bot.command()
 async def menu(ctx):
